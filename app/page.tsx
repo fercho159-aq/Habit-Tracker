@@ -44,18 +44,25 @@ export default function Home() {
   const [activeHabitId, setActiveHabitId] = useState<number | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const workerRef = useRef<Worker | null>(null);
 
-  // Initialize Theme
+  // Initialize Theme & Web Worker
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     if (savedTheme) {
       setTheme(savedTheme);
       document.documentElement.setAttribute('data-theme', savedTheme);
     } else {
-      // Default to Dark if no preference
       setTheme('dark');
       document.documentElement.setAttribute('data-theme', 'dark');
     }
+
+    // Initialize Web Worker
+    workerRef.current = new Worker('/timer.worker.js');
+
+    return () => {
+      workerRef.current?.terminate();
+    };
   }, []);
 
   const toggleTheme = () => {
@@ -69,14 +76,34 @@ export default function Home() {
   useEffect(() => {
     if (!serverHabits) return;
 
+    // Load remaining times
     const savedData = localStorage.getItem('my_habits_timer');
     const savedHabits: Record<number, number> = savedData ? JSON.parse(savedData) : {};
 
-    // Map server habits to local state, preserving saved time if exists
-    const mergedHabits = serverHabits.map(h => ({
-      ...h,
-      remainingTime: savedHabits[h.id] !== undefined ? savedHabits[h.id] : h.target_minutes * 60
-    }));
+    // Check for active habit end time to sync
+    const savedActiveId = localStorage.getItem('active_habit_id');
+    const savedEndTime = localStorage.getItem('active_habit_end_time');
+
+    // Temporary map to calculate current status
+    const mergedHabits = serverHabits.map(h => {
+      let remaining = savedHabits[h.id] !== undefined ? savedHabits[h.id] : h.target_minutes * 60;
+
+      // If this was the active habit, re-calculate based on elapsed time from NOW
+      if (savedActiveId && Number(savedActiveId) === h.id && savedEndTime) {
+        const end = parseInt(savedEndTime, 10);
+        const now = Date.now();
+        if (end > now) {
+          remaining = Math.ceil((end - now) / 1000);
+          setActiveHabitId(h.id);
+        } else {
+          remaining = 0; // Timer finished while away
+          setActiveHabitId(null);
+          localStorage.removeItem('active_habit_id');
+          localStorage.removeItem('active_habit_end_time');
+        }
+      }
+      return { ...h, remainingTime: remaining };
+    });
 
     setLocalHabits(mergedHabits);
     setIsLoaded(true);
@@ -94,39 +121,88 @@ export default function Home() {
     localStorage.setItem('my_habits_timer', JSON.stringify(timeMap));
   }, [localHabits, isLoaded]);
 
-  // 3. Timer Logic (The "Tick")
+  // 3. Robust Timer Logic with Worker & Timestamp
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (activeHabitId) {
-      interval = setInterval(() => {
-        setLocalHabits(prev =>
-          prev.map(habit => {
-            if (habit.id === activeHabitId && habit.remainingTime > 0) {
-              return { ...habit, remainingTime: habit.remainingTime - 1 };
-            }
-            return habit;
-          })
-        );
-      }, 1000);
+    if (!activeHabitId) {
+      document.title = "Habit Flow";
+      workerRef.current?.postMessage('stop');
+      return;
     }
 
-    return () => clearInterval(interval);
-  }, [activeHabitId]);
+    // Start Worker
+    workerRef.current?.postMessage('start');
 
+    // Define tick function
+    const handleTick = () => {
+      // Get the absolute end time from storage
+      const endTimeStr = localStorage.getItem('active_habit_end_time');
+      if (!endTimeStr) return; // Should not happen if active
+
+      const endTime = parseInt(endTimeStr, 10);
+      const now = Date.now();
+      const secondsLeft = Math.ceil((endTime - now) / 1000);
+
+      if (secondsLeft <= 0) {
+        // Timer Finished
+        setLocalHabits(prev => prev.map(h => h.id === activeHabitId ? { ...h, remainingTime: 0 } : h));
+        setActiveHabitId(null);
+        localStorage.removeItem('active_habit_id');
+        localStorage.removeItem('active_habit_end_time');
+        document.title = "¡Tiempo Terminado!";
+      } else {
+        // Update Tick
+        setLocalHabits(prev => prev.map(h => h.id === activeHabitId ? { ...h, remainingTime: secondsLeft } : h));
+        // Update Title
+        const m = Math.floor(secondsLeft / 60);
+        const s = secondsLeft % 60;
+        document.title = `${m}:${s.toString().padStart(2, '0')} - Focus`;
+      }
+    };
+
+    // Listen to worker messages
+    const worker = workerRef.current;
+    if (worker) {
+      worker.onmessage = (e) => {
+        if (e.data === 'tick') {
+          handleTick();
+        }
+      };
+    }
+
+    return () => {
+      if (worker) worker.onmessage = null;
+    };
+  }, [activeHabitId]);
 
   const toggleHabit = (id: number) => {
     if (activeHabitId === id) {
-      setActiveHabitId(null); // Stop if clicking the same one
+      // PAUSE: Just stop, remaining time is already saved in state/localstorage map
+      setActiveHabitId(null);
+      localStorage.removeItem('active_habit_id');
+      localStorage.removeItem('active_habit_end_time');
     } else {
-      setActiveHabitId(id); // Switch instantly
+      // START / SWITCH
+      const habit = localHabits.find(h => h.id === id);
+      if (!habit) return;
+
+      const now = Date.now();
+      const endTime = now + (habit.remainingTime * 1000);
+
+      localStorage.setItem('active_habit_id', id.toString());
+      localStorage.setItem('active_habit_end_time', endTime.toString());
+      setActiveHabitId(id);
     }
   };
 
   const resetHabit = (e: React.MouseEvent, id: number, initialMinutes: number) => {
     e.stopPropagation();
     setLocalHabits(prev => prev.map(h => h.id === id ? { ...h, remainingTime: initialMinutes * 60 } : h));
-    if (activeHabitId === id) setActiveHabitId(null);
+
+    if (activeHabitId === id) {
+      setActiveHabitId(null);
+      localStorage.removeItem('active_habit_id');
+      localStorage.removeItem('active_habit_end_time');
+    }
   };
 
   // Create Habit Form State
