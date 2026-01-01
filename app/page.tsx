@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR, { mutate } from 'swr';
-import { Play, Pause, Square, Plus, X, StopCircle, Clock, RotateCcw, Moon, Sun } from 'lucide-react';
+import { Play, Pause, Square, Plus, X, StopCircle, Clock, RotateCcw, Moon, Sun, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -151,6 +151,18 @@ export default function Home() {
     setIsCreating(false);
     mutate('/api/habits'); // Refresh list
     setNewHabitName('');
+  };
+
+  const deleteHabit = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this habit?')) return;
+
+    await fetch(`/api/habits/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (activeHabitId === id) setActiveHabitId(null);
+    mutate('/api/habits'); // Refresh list
   };
 
   // Visual Computation for Active Timer
@@ -355,14 +367,23 @@ export default function Home() {
                       {formatTime(habit.remainingTime)} left
                     </span>
 
-                    {/* Reset button mini */}
-                    <button
-                      onClick={(e) => resetHabit(e, habit.id, habit.target_minutes)}
-                      className="p-1.5 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-gray-500/10 transition-all z-20"
-                      title="Reset Timer"
-                    >
-                      <RotateCcw size={14} />
-                    </button>
+                    {/* Action buttons mini */}
+                    <div className="flex gap-2 relative z-20">
+                      <button
+                        onClick={(e) => deleteHabit(e, habit.id)}
+                        className="p-1.5 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                        title="Delete Habit"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => resetHabit(e, habit.id, habit.target_minutes)}
+                        className="p-1.5 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-gray-500/10 transition-all"
+                        title="Reset Timer"
+                      >
+                        <RotateCcw size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
