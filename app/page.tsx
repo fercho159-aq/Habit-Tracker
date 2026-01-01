@@ -284,15 +284,9 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl mb-4 text-white">
-                <Clock size={48} className="opacity-90" />
-              </div>
               <h1 className="text-5xl md:text-6xl font-semibold tracking-tight text-current drop-shadow-sm">
                 Tiempo de Enfoque
               </h1>
-              <p className="text-xl opacity-50 font-light max-w-md text-current">
-                Selecciona un hábito abajo para comenzar.
-              </p>
             </div>
           )}
         </section>
