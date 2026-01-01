@@ -1,32 +1,42 @@
 @import "tailwindcss";
 
 :root {
+  /* Default Light Mode (iOS Style) */
+  --background: #F2F2F7;
+  --foreground: #000000;
+  --card-bg: rgba(255, 255, 255, 0.65);
+  --card-border: rgba(0, 0, 0, 0.05);
+  --input-bg: #FFFFFF;
+  --ring: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  /* Dark Mode */
   --background: #000000;
   --foreground: #ffffff;
   --card-bg: rgba(28, 28, 30, 0.6);
   --card-border: rgba(255, 255, 255, 0.1);
-  --accent: #0A84FF;
+  --input-bg: #1C1C1E;
+  --ring: rgba(255, 255, 255, 0.15);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --card-bg: var(--card-bg);
-  --color-accent: var(--accent);
+  --color-card: var(--card-bg);
+  --color-input: var(--input-bg);
+  --color-ring-line: var(--ring);
   --font-sans: var(--font-inter);
 }
 
 body {
-  background: #000000;
+  background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   min-height: 100vh;
   margin: 0;
   -webkit-font-smoothing: antialiased;
-  background-image:
-    radial-gradient(circle at 50% 0%, #2c2c2e 0%, transparent 70%),
-    radial-gradient(circle at 80% 80%, #1c1c1e 0%, transparent 50%);
-  background-attachment: fixed;
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 @layer utilities {
@@ -35,7 +45,12 @@ body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--card-border);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Additional shadow for light mode visibility */
+  [data-theme='light'] .ios-glass {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
   }
 
   .ios-btn {
@@ -45,9 +60,5 @@ body {
   .ios-btn:active {
     transform: scale(0.96);
     opacity: 0.9;
-  }
-
-  .text-glow {
-    text-shadow: 0 0 30px currentColor;
   }
 }
