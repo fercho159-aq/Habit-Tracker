@@ -1,36 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card-bg: rgba(30, 41, 59, 0.7);
-  --card-border: rgba(148, 163, 184, 0.1);
+  --background: #000000;
+  --foreground: #ffffff;
+  --card-bg: rgba(28, 28, 30, 0.6);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --accent: #0A84FF;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --card-bg: var(--card-bg);
+  --color-accent: var(--accent);
   --font-sans: var(--font-inter);
 }
 
 body {
-  background: radial-gradient(circle at top left, #1e1b4b, #0f172a);
+  background: #000000;
   color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   min-height: 100vh;
   margin: 0;
   -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 50% 0%, #2c2c2e 0%, transparent 70%),
+    radial-gradient(circle at 80% 80%, #1c1c1e 0%, transparent 50%);
+  background-attachment: fixed;
 }
 
 @layer utilities {
-  .glass-panel {
+  .ios-glass {
     background: var(--card-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--card-border);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
   }
-  
+
+  .ios-btn {
+    transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+
+  .ios-btn:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+  }
+
   .text-glow {
-    text-shadow: 0 0 20px currentColor;
+    text-shadow: 0 0 30px currentColor;
   }
 }
