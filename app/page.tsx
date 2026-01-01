@@ -170,6 +170,7 @@ export default function Home() {
       if (secondsLeft <= 0) {
         // Timer Finished
         setLocalHabits(prev => prev.map(h => h.id === activeHabitId ? { ...h, remainingTime: 0 } : h));
+        saveProgress(activeHabitId, 0); // Sync Completion
         setActiveHabitId(null);
         localStorage.removeItem('active_habit_id');
         localStorage.removeItem('active_habit_end_time');
@@ -177,6 +178,12 @@ export default function Home() {
       } else {
         // Update Tick
         setLocalHabits(prev => prev.map(h => h.id === activeHabitId ? { ...h, remainingTime: secondsLeft } : h));
+
+        // HEARTBEAT SYNC: Save to DB every 5 seconds to ensure cross-device accuracy
+        if (secondsLeft % 5 === 0) {
+          saveProgress(activeHabitId, secondsLeft);
+        }
+
         // Update Title
         const m = Math.floor(secondsLeft / 60);
         const s = secondsLeft % 60;
