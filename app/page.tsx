@@ -266,7 +266,7 @@ export default function Home() {
           <h2 className="text-2xl font-semibold text-current tracking-tight">Your Habits</h2>
           <button
             onClick={() => setIsCreating(true)}
-            className="ios-btn px-5 py-2.5 rounded-full bg-current text-[var(--background)] font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-lg"
+            className="ios-btn px-5 py-2.5 rounded-full bg-[#0A84FF] text-white font-semibold hover:bg-[#0071e3] transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
           >
             <Plus size={18} /> New Habit
           </button>
