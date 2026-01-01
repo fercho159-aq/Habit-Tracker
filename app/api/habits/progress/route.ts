@@ -6,17 +6,22 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { habit_id, remaining_seconds } = body;
 
+        console.log('[PROGRESS API] Saving:', { habit_id, remaining_seconds });
+
         // Upsert daily progress
-        await query(`
+        const result = await query(`
             INSERT INTO daily_progress (habit_id, date, remaining_seconds, updated_at)
             VALUES ($1, CURRENT_DATE, $2, CURRENT_TIMESTAMP)
             ON CONFLICT (habit_id, date)
-            DO UPDATE SET remaining_seconds = $2, updated_at = CURRENT_TIMESTAMP
+            DO UPDATE SET remaining_seconds = EXCLUDED.remaining_seconds, updated_at = CURRENT_TIMESTAMP
+            RETURNING *
         `, [habit_id, remaining_seconds]);
 
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Error updating progress:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        console.log('[PROGRESS API] Result:', result.rows);
+
+        return NextResponse.json({ success: true, data: result.rows[0] });
+    } catch (error: any) {
+        console.error('[PROGRESS API] Error:', error.message, error.stack);
+        return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
     }
 }
