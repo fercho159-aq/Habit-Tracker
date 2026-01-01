@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Habit Flow | Focus Timer",
-  description: "Track your habits and stay focused.",
+  title: "Habit Flow | Temporizador de Enfoque",
+  description: "Rastrea tus hábitos y mantente enfocado.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icon.png",

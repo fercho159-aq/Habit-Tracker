@@ -10,7 +10,7 @@ import { twMerge } from 'tailwind-merge';
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error('Failed to fetch');
+    throw new Error('Error al cargar datos');
   }
   return res.json();
 };
@@ -176,7 +176,7 @@ export default function Home() {
     progress = totalSeconds > 0 ? ((totalSeconds - activeHabit.remainingTime) / totalSeconds) * 100 : 0;
   }
 
-  if (!isLoaded && !serverHabits) return <div className="text-center mt-20 text-gray-500">Loading habits...</div>;
+  if (!isLoaded && !serverHabits) return <div className="text-center mt-20 text-gray-500">Cargando hábitos...</div>;
 
   return (
     <main className="min-h-screen p-6 md:p-12 max-w-5xl mx-auto flex flex-col items-center font-sans tracking-tight transition-colors duration-500">
@@ -251,10 +251,10 @@ export default function Home() {
               <Clock size={48} className="opacity-90" />
             </div>
             <h1 className="text-5xl md:text-6xl font-semibold tracking-tight text-current drop-shadow-sm">
-              Focus Time
+              Tiempo de Enfoque
             </h1>
             <p className="text-xl opacity-50 font-light max-w-md text-current">
-              Select a habit below to start.
+              Selecciona un hábito abajo para comenzar.
             </p>
           </div>
         )}
