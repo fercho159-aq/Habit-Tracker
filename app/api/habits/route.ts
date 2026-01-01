@@ -3,7 +3,13 @@ import { query } from '@/lib/db';
 
 export async function GET() {
     try {
-        const result = await query('SELECT * FROM habits ORDER BY id ASC');
+        const result = await query(`
+            SELECT h.*, 
+                   COALESCE(dp.remaining_seconds, h.target_minutes * 60) as daily_remaining_seconds
+            FROM habits h
+            LEFT JOIN daily_progress dp ON h.id = dp.habit_id AND dp.date = CURRENT_DATE
+            ORDER BY h.id ASC
+        `);
         return NextResponse.json(result.rows);
     } catch (error) {
         console.error('Error fetching habits:', error);

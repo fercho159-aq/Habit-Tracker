@@ -21,6 +21,7 @@ interface Habit {
   icon: string;
   color: string;
   target_minutes: number;
+  daily_remaining_seconds?: number;
 }
 
 interface LocalHabitState extends Habit {
@@ -76,7 +77,7 @@ export default function Home() {
   useEffect(() => {
     if (!serverHabits) return;
 
-    // Load remaining times
+    // Load remaining times from LOCAL STORAGE (backup)
     const savedData = localStorage.getItem('my_habits_timer');
     const savedHabits: Record<number, number> = savedData ? JSON.parse(savedData) : {};
 
@@ -86,7 +87,11 @@ export default function Home() {
 
     // Temporary map to calculate current status
     const mergedHabits = serverHabits.map(h => {
-      let remaining = savedHabits[h.id] !== undefined ? savedHabits[h.id] : h.target_minutes * 60;
+      // Prioritize Server Daily Progress, fallback to Target Minutes * 60
+      let remaining = h.daily_remaining_seconds !== undefined ? h.daily_remaining_seconds : h.target_minutes * 60;
+
+      // NOTE: We trust the server for the "start of session" time if available.
+      // But if there's a LOCAL ACTIVE timer, that takes precedence for real-time accuracy.
 
       // If this was the active habit, re-calculate based on elapsed time from NOW
       if (savedActiveId && Number(savedActiveId) === h.id && savedEndTime) {
@@ -101,6 +106,13 @@ export default function Home() {
           localStorage.removeItem('active_habit_id');
           localStorage.removeItem('active_habit_end_time');
         }
+      } else {
+        // If not active, but we have local storage data that might differ...
+        // Actually, if we want multi-device sync, we should prefer Server Data.
+        // But if offline, use Local. 
+        // For now, let's assume Server Data (h.daily_remaining_seconds) knows best
+        // UNLESS it's undefined (meaning new day or no data), then we might check local?
+        // Let's stick to: Server Data > Local Storage if Server Data exists.
       }
       return { ...h, remainingTime: remaining };
     });
@@ -108,6 +120,19 @@ export default function Home() {
     setLocalHabits(mergedHabits);
     setIsLoaded(true);
   }, [serverHabits]);
+
+  // Sync Helper
+  const saveProgress = async (habitId: number, seconds: number) => {
+    try {
+      await fetch('/api/habits/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ habit_id: habitId, remaining_seconds: seconds })
+      });
+    } catch (e) {
+      console.error("Failed to save progress", e);
+    }
+  };
 
   // 2. Persistence: Save to LocalStorage whenever time changes
   useEffect(() => {
@@ -180,8 +205,19 @@ export default function Home() {
       setActiveHabitId(null);
       localStorage.removeItem('active_habit_id');
       localStorage.removeItem('active_habit_end_time');
+
+      // SYNC: Save to DB on Pause
+      const currentHabit = localHabits.find(h => h.id === id);
+      if (currentHabit) saveProgress(id, currentHabit.remainingTime);
     } else {
       // START / SWITCH
+
+      // SYNC: If switching from another active habit, save THAT one first
+      if (activeHabitId) {
+        const prevHabit = localHabits.find(h => h.id === activeHabitId);
+        if (prevHabit) saveProgress(activeHabitId, prevHabit.remainingTime);
+      }
+
       const habit = localHabits.find(h => h.id === id);
       if (!habit) return;
 
@@ -196,7 +232,11 @@ export default function Home() {
 
   const resetHabit = (e: React.MouseEvent, id: number, initialMinutes: number) => {
     e.stopPropagation();
-    setLocalHabits(prev => prev.map(h => h.id === id ? { ...h, remainingTime: initialMinutes * 60 } : h));
+    const newSeconds = initialMinutes * 60;
+    setLocalHabits(prev => prev.map(h => h.id === id ? { ...h, remainingTime: newSeconds } : h));
+
+    // SYNC: Save to DB on Reset
+    saveProgress(id, newSeconds);
 
     if (activeHabitId === id) {
       setActiveHabitId(null);
