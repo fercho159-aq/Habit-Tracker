@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR, { mutate } from 'swr';
-import { Play, Pause, Square, Plus, X, StopCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { Play, Pause, Square, Plus, X, StopCircle, Clock, RotateCcw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -10,10 +10,7 @@ import { twMerge } from 'tailwind-merge';
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
-    const error = new Error('An error occurred while fetching the data.');
-    // @ts-ignore
-    error.status = res.status;
-    throw error;
+    throw new Error('Failed to fetch');
   }
   return res.json();
 };
@@ -26,17 +23,8 @@ interface Habit {
   target_minutes: number;
 }
 
-interface TimerStatus {
-  id: number;
-  habit_id: number;
-  started_at: string;
-  remaining_seconds: number;
-  original_duration: number;
-  habit_name: string;
-  habit_icon: string;
-  habit_color: string;
-  current_remaining: number;
-  is_running: boolean;
+interface LocalHabitState extends Habit {
+  remainingTime: number; // in seconds
 }
 
 function formatTime(seconds: number) {
@@ -50,49 +38,81 @@ function formatTime(seconds: number) {
 }
 
 export default function Home() {
-  const { data: habits, error: habitsError } = useSWR<Habit[]>('/api/habits', fetcher);
-  const { data: timer, error: timerError } = useSWR<TimerStatus | null>('/api/timer', fetcher, {
-    refreshInterval: 1000
-  });
+  const { data: serverHabits } = useSWR<Habit[]>('/api/habits', fetcher);
 
-  const [localRemaining, setLocalRemaining] = useState<number | null>(null);
+  const [localHabits, setLocalHabits] = useState<LocalHabitState[]>([]);
+  const [activeHabitId, setActiveHabitId] = useState<number | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
+  // 1. Initialize State (Merge Server Habits + LocalStorage)
   useEffect(() => {
-    if (timer?.current_remaining !== undefined) {
-      setLocalRemaining(timer.current_remaining);
-    } else {
-      setLocalRemaining(null);
+    if (!serverHabits) return;
+
+    const savedData = localStorage.getItem('my_habits_timer');
+    const savedHabits: Record<number, number> = savedData ? JSON.parse(savedData) : {};
+
+    // Map server habits to local state, preserving saved time if exists
+    const mergedHabits = serverHabits.map(h => ({
+      ...h,
+      remainingTime: savedHabits[h.id] !== undefined ? savedHabits[h.id] : h.target_minutes * 60
+    }));
+
+    setLocalHabits(mergedHabits);
+    setIsLoaded(true);
+  }, [serverHabits]);
+
+  // 2. Persistence: Save to LocalStorage whenever time changes
+  useEffect(() => {
+    if (!isLoaded || localHabits.length === 0) return;
+
+    const timeMap = localHabits.reduce((acc, h) => {
+      acc[h.id] = h.remainingTime;
+      return acc;
+    }, {} as Record<number, number>);
+
+    localStorage.setItem('my_habits_timer', JSON.stringify(timeMap));
+  }, [localHabits, isLoaded]);
+
+  // 3. Timer Logic (The "Tick")
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (activeHabitId) {
+      interval = setInterval(() => {
+        setLocalHabits(prev =>
+          prev.map(habit => {
+            if (habit.id === activeHabitId && habit.remainingTime > 0) {
+              return { ...habit, remainingTime: habit.remainingTime - 1 };
+            }
+            if (habit.id === activeHabitId && habit.remainingTime === 0) {
+              // Optional: Auto-stop or play sound when done
+              return habit;
+            }
+            return habit;
+          })
+        );
+      }, 1000);
     }
-  }, [timer]);
 
-  useEffect(() => {
-    if (localRemaining === null || localRemaining <= 0) return;
-    const interval = setInterval(() => {
-      setLocalRemaining(prev => (prev && prev > 0 ? prev - 1 : 0));
-    }, 1000);
     return () => clearInterval(interval);
-  }, [localRemaining]);
+  }, [activeHabitId]);
 
 
-  const startHabit = async (habitId: number) => {
-    await fetch('/api/timer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ habit_id: habitId }),
-    });
-    mutate('/api/timer');
+  const toggleHabit = (id: number) => {
+    if (activeHabitId === id) {
+      setActiveHabitId(null); // Stop if clicking the same one
+    } else {
+      setActiveHabitId(id); // Switch instantly
+    }
   };
 
-  const stopTimer = async (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    await fetch('/api/timer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    mutate('/api/timer');
+  const resetHabit = (e: React.MouseEvent, id: number, initialMinutes: number) => {
+    e.stopPropagation();
+    setLocalHabits(prev => prev.map(h => h.id === id ? { ...h, remainingTime: initialMinutes * 60 } : h));
+    if (activeHabitId === id) setActiveHabitId(null);
   };
 
+  // Create Habit Form State
   const [isCreating, setIsCreating] = useState(false);
   const [newHabitName, setNewHabitName] = useState('');
   const [newHabitIcon, setNewHabitIcon] = useState('✨');
@@ -112,30 +132,33 @@ export default function Home() {
       }),
     });
     setIsCreating(false);
-    mutate('/api/habits');
+    mutate('/api/habits'); // Refresh list
     setNewHabitName('');
   };
 
-  // Progress Ring Calculation
-  const progress = timer && timer.original_duration > 0 && localRemaining !== null
-    ? ((timer.original_duration - localRemaining) / timer.original_duration) * 100
-    : 0;
-
+  // Visual Computation for Active Timer
+  const activeHabit = localHabits.find(h => h.id === activeHabitId);
   const circleRadius = 120;
   const circumference = 2 * Math.PI * circleRadius;
-  const items = habits || [];
+
+  let progress = 0;
+  if (activeHabit) {
+    const totalSeconds = activeHabit.target_minutes * 60;
+    progress = totalSeconds > 0 ? ((totalSeconds - activeHabit.remainingTime) / totalSeconds) * 100 : 0;
+  }
+
+  if (!isLoaded && !serverHabits) return <div className="text-white text-center mt-20">Loading habits...</div>;
 
   return (
     <main className="min-h-screen p-6 md:p-12 max-w-5xl mx-auto flex flex-col items-center font-sans tracking-tight">
 
-      {/* Dynamic Header / Timer Section */}
+      {/* Header / Active Timer Section */}
       <section className="w-full flex flex-col items-center justify-center py-12 min-h-[40vh] relative">
-        {timer ? (
-          <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-700">
+        {activeHabit ? (
+          <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
 
             {/* Timer Ring */}
             <div className="relative flex items-center justify-center drop-shadow-2xl">
-              {/* Background Ring */}
               <svg className="transform -rotate-90 w-[300px] h-[300px]">
                 <circle
                   cx="150"
@@ -145,12 +168,11 @@ export default function Home() {
                   strokeWidth="8"
                   fill="transparent"
                 />
-                {/* Progress Ring */}
                 <circle
                   cx="150"
                   cy="150"
                   r={circleRadius}
-                  stroke={timer.habit_color}
+                  stroke={activeHabit.color}
                   strokeWidth="8"
                   fill="transparent"
                   strokeDasharray={circumference}
@@ -161,23 +183,31 @@ export default function Home() {
               </svg>
 
               <div className="absolute flex flex-col items-center">
-                <span className="text-4xl mb-2 filter drop-shadow-md">{timer.habit_icon}</span>
+                <span className="text-4xl mb-2 filter drop-shadow-md">{activeHabit.icon}</span>
                 <div className="text-7xl font-extralight tracking-tighter tabular-nums text-white drop-shadow-lg">
-                  {localRemaining !== null ? formatTime(localRemaining) : '--:--'}
+                  {formatTime(activeHabit.remainingTime)}
                 </div>
-                <p className="text-white/60 font-medium mt-2">{timer.habit_name}</p>
+                <p className="text-white/60 font-medium mt-2">{activeHabit.name}</p>
               </div>
             </div>
 
-            <button
-              onClick={(e) => stopTimer(e)}
-              className="ios-btn mt-4 flex items-center gap-2 px-8 py-3 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 backdrop-blur-md transition-all font-medium"
-            >
-              <StopCircle size={18} /> End Session
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setActiveHabitId(null)}
+                className="ios-btn flex items-center gap-2 px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-md transition-all font-medium"
+              >
+                <Pause size={18} /> Pause
+              </button>
+              <button
+                onClick={(e) => resetHabit(e, activeHabit.id, activeHabit.target_minutes)}
+                className="ios-btn flex items-center gap-2 px-6 py-3 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 backdrop-blur-md transition-all font-medium"
+              >
+                <RotateCcw size={18} /> Reset
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="flex flex-col items-center justify-center h-full text-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl mb-4">
               <Clock size={48} className="text-white opacity-90" />
             </div>
@@ -185,7 +215,7 @@ export default function Home() {
               Focus Time
             </h1>
             <p className="text-xl text-white/50 font-light max-w-md">
-              Select a habit below to start your immersive focus session.
+              Select a habit below to start.
             </p>
           </div>
         )}
@@ -258,22 +288,23 @@ export default function Home() {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {items.map((habit) => {
-            const isActive = timer?.habit_id === habit.id;
+          {localHabits.map((habit) => {
+            const isActive = activeHabitId === habit.id;
+            // Calculate individual progress
+            const totalSec = habit.target_minutes * 60;
+            const habProgress = totalSec > 0 ? ((totalSec - habit.remainingTime) / totalSec) * 100 : 0;
+
             return (
-              <button
+              <div
                 key={habit.id}
-                onClick={() => startHabit(habit.id)}
+                onClick={() => toggleHabit(habit.id)}
                 className={twMerge(
-                  "ios-glass group relative flex flex-col p-5 rounded-[1.5rem] items-start transition-all duration-300 ios-btn h-40 justify-between overflow-hidden",
+                  "ios-glass group relative flex flex-col p-5 rounded-[1.5rem] justify-between overflow-hidden cursor-pointer transition-all duration-300 ios-btn h-40",
                   isActive
                     ? "bg-white/[0.08] ring-1 ring-inset ring-white/20"
                     : "hover:bg-white/[0.08] hover:border-white/20"
                 )}
               >
-                {/* Premium Glow effect on hover */}
-                <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-all pointer-events-none" />
-
                 <div className="w-full flex justify-between items-start z-10">
                   <div
                     className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner transition-transform group-hover:scale-110 duration-500"
@@ -282,33 +313,41 @@ export default function Home() {
                     {habit.icon}
                   </div>
                   {isActive && (
-                    <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-full">
-                      <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                      </span>
+                    <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-full animate-pulse">
+                      <Clock size={14} className="text-white" />
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-col items-start z-10 w-full">
-                  <h3 className="text-lg font-semibold text-white/90 leading-tight mb-1">{habit.name}</h3>
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-white/40 group-hover:text-white/60 transition-colors">
-                    <Clock size={12} />
-                    <span>{habit.target_minutes} min</span>
+                <div className="flex flex-col items-start z-10 w-full mt-2">
+                  <h3 className="text-lg font-semibold text-white/90 leading-tight mb-0.5">{habit.name}</h3>
+                  <div className="flex justify-between w-full items-end">
+                    <span className={clsx(
+                      "text-xs font-medium transition-colors tabular-nums",
+                      isActive ? "text-white" : "text-white/40 group-hover:text-white/60"
+                    )}>
+                      {formatTime(habit.remainingTime)} left
+                    </span>
+
+                    {/* Reset button mini */}
+                    <button
+                      onClick={(e) => resetHabit(e, habit.id, habit.target_minutes)}
+                      className="p-1.5 rounded-full text-white/20 hover:text-white hover:bg-white/10 transition-all z-20"
+                      title="Reset Timer"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Active progress bar bottom */}
-                {isActive && (
-                  <div className="absolute inset-x-0 bottom-0 h-1 bg-white/10">
-                    <div
-                      className="h-full transition-all duration-1000 ease-linear"
-                      style={{ width: `${progress}%`, backgroundColor: habit.color }}
-                    />
-                  </div>
-                )}
-              </button>
+                {/* Progress bar at bottom */}
+                <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/5">
+                  <div
+                    className="h-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${habProgress}%`, backgroundColor: habit.color }}
+                  />
+                </div>
+              </div>
             );
           })}
         </div>
