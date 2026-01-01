@@ -176,6 +176,11 @@ export default function Home() {
     progress = totalSeconds > 0 ? ((totalSeconds - activeHabit.remainingTime) / totalSeconds) * 100 : 0;
   }
 
+  // Calculate Total Daily Goal
+  const totalDailyMinutes = localHabits.reduce((acc, h) => acc + h.target_minutes, 0);
+  const totalHours = Math.floor(totalDailyMinutes / 60);
+  const totalMins = totalDailyMinutes % 60;
+
   if (!isLoaded && !serverHabits) return <div className="text-center mt-20 text-gray-500">Cargando hábitos...</div>;
 
   return (
@@ -235,13 +240,13 @@ export default function Home() {
                 onClick={() => setActiveHabitId(null)}
                 className="ios-btn flex items-center gap-2 px-6 py-3 rounded-full bg-gray-500/10 hover:bg-gray-500/20 text-current border border-gray-500/10 backdrop-blur-md transition-all font-medium"
               >
-                <Pause size={18} /> Pause
+                <Pause size={18} /> Pausar
               </button>
               <button
                 onClick={(e) => resetHabit(e, activeHabit.id, activeHabit.target_minutes)}
                 className="ios-btn flex items-center gap-2 px-6 py-3 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 backdrop-blur-md transition-all font-medium"
               >
-                <RotateCcw size={18} /> Reset
+                <RotateCcw size={18} /> Reiniciar
               </button>
             </div>
           </div>
@@ -262,13 +267,19 @@ export default function Home() {
 
       {/* Habits Grid */}
       <section className="w-full mt-8">
-        <div className="flex items-center justify-between mb-8 px-2">
-          <h2 className="text-2xl font-semibold text-current tracking-tight">Your Habits</h2>
+        <div className="flex flex-col md:flex-row items-center justify-between mb-8 px-2 gap-4">
+          <div className="flex flex-col items-start">
+            <h2 className="text-3xl font-bold text-current tracking-tight">Tus Hábitos</h2>
+            <p className="text-current opacity-50 font-medium">
+              Meta Diaria Total: {totalHours > 0 ? `${totalHours}h ` : ''}{totalMins}m
+            </p>
+          </div>
+
           <button
             onClick={() => setIsCreating(true)}
-            className="ios-btn px-5 py-2.5 rounded-full bg-[#0A84FF] text-white font-semibold hover:bg-[#0071e3] transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+            className="ios-btn px-6 py-3 rounded-full bg-[#0A84FF] text-white font-semibold hover:bg-[#0071e3] transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
           >
-            <Plus size={18} /> New Habit
+            <Plus size={20} /> Nuevo Hábito
           </button>
         </div>
 
@@ -277,7 +288,7 @@ export default function Home() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="ios-glass w-full max-w-md rounded-[2rem] p-8 animate-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-white/10 bg-[var(--card-bg)] text-current">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-semibold">New Habit</h3>
+                <h3 className="text-2xl font-semibold">Nuevo Hábito</h3>
                 <button onClick={() => setIsCreating(false)} className="p-2 rounded-full hover:bg-gray-500/10 transition-colors">
                   <X size={20} />
                 </button>
@@ -285,23 +296,23 @@ export default function Home() {
 
               <form onSubmit={createHabit} className="flex flex-col gap-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium opacity-60 ml-1">Name</label>
-                  <input autoFocus required value={newHabitName} onChange={e => setNewHabitName(e.target.value)} className="w-full bg-[var(--input-bg)] border-0 rounded-xl px-5 py-3.5 text-current text-lg placeholder:opacity-30 focus:ring-2 focus:ring-[#0A84FF] outline-none transition-all shadow-inner" placeholder="Reading" />
+                  <label className="text-sm font-medium opacity-60 ml-1">Nombre</label>
+                  <input autoFocus required value={newHabitName} onChange={e => setNewHabitName(e.target.value)} className="w-full bg-[var(--input-bg)] border-0 rounded-xl px-5 py-3.5 text-current text-lg placeholder:opacity-30 focus:ring-2 focus:ring-[#0A84FF] outline-none transition-all shadow-inner" placeholder="Ej. Lectura" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium opacity-60 ml-1">Duration (min)</label>
+                    <label className="text-sm font-medium opacity-60 ml-1">Duración (min)</label>
                     <input type="number" required value={newHabitDuration} onChange={e => setNewHabitDuration(Number(e.target.value))} className="w-full bg-[var(--input-bg)] border-0 rounded-xl px-5 py-3.5 text-current text-lg focus:ring-2 focus:ring-[#0A84FF] outline-none transition-all shadow-inner" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium opacity-60 ml-1">Icon</label>
+                    <label className="text-sm font-medium opacity-60 ml-1">Icono</label>
                     <input value={newHabitIcon} onChange={e => setNewHabitIcon(e.target.value)} className="w-full bg-[var(--input-bg)] border-0 rounded-xl px-5 py-3.5 text-current text-lg text-center focus:ring-2 focus:ring-[#0A84FF] outline-none transition-all shadow-inner" placeholder="📚" />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium opacity-60 ml-1">Color Theme</label>
+                  <label className="text-sm font-medium opacity-60 ml-1">Color del Tema</label>
                   <div className="flex justify-between gap-2 bg-[var(--input-bg)] p-2 rounded-xl shadow-inner">
                     {['#0A84FF', '#30D158', '#BF5AF2', '#FF9F0A', '#FF375F', '#64D2FF'].map((c) => (
                       <button
@@ -319,14 +330,14 @@ export default function Home() {
                 </div>
 
                 <button type="submit" className="mt-4 w-full py-4 rounded-xl bg-[#0A84FF] hover:bg-[#0071e3] text-white font-semibold text-lg transition-all shadow-lg active:scale-[0.98]">
-                  Create Habit
+                  Crear Hábito
                 </button>
               </form>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="flex flex-col gap-3 w-full max-w-3xl mx-auto">
           {localHabits.map((habit) => {
             const isActive = activeHabitId === habit.id;
             // Calculate individual progress
@@ -339,56 +350,58 @@ export default function Home() {
                 key={habit.id}
                 onClick={() => toggleHabit(habit.id)}
                 className={twMerge(
-                  "ios-glass group relative flex flex-col p-5 rounded-[1.5rem] justify-between overflow-hidden cursor-pointer transition-all duration-300 ios-btn h-40",
+                  "ios-glass group relative flex items-center justify-between p-4 px-6 rounded-[1.5rem] overflow-hidden cursor-pointer transition-all duration-300 ios-btn w-full",
                   cardBgClass
                 )}
               >
-                <div className="w-full flex justify-between items-start z-10">
+                <div className="flex items-center gap-5 z-10 w-full">
+                  {/* Icon */}
                   <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner transition-transform group-hover:scale-110 duration-500"
+                    className="w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center text-2xl shadow-inner transition-transform group-hover:scale-110 duration-500"
                     style={{ backgroundColor: isActive ? habit.color : 'var(--input-bg)', color: isActive ? '#fff' : habit.color }}
                   >
                     {habit.icon}
                   </div>
-                  {isActive && (
-                    <div className="bg-gray-500/20 backdrop-blur-md px-2 py-1 rounded-full animate-pulse">
-                      <Clock size={14} className="text-current" />
-                    </div>
-                  )}
-                </div>
 
-                <div className="flex flex-col items-start z-10 w-full mt-2">
-                  <h3 className="text-lg font-semibold text-current leading-tight mb-0.5">{habit.name}</h3>
-                  <div className="flex justify-between w-full items-end">
+                  {/* Info */}
+                  <div className="flex flex-col flex-grow min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-current leading-tight truncate">{habit.name}</h3>
+                      {isActive && (
+                        <div className="bg-gray-500/20 backdrop-blur-md px-2 py-0.5 rounded-full animate-pulse">
+                          <Clock size={12} className="text-current" />
+                        </div>
+                      )}
+                    </div>
                     <span className={clsx(
-                      "text-xs font-medium transition-colors tabular-nums",
-                      isActive ? "text-current" : "text-current opacity-40 group-hover:opacity-60"
+                      "text-sm font-medium transition-colors tabular-nums mt-0.5",
+                      isActive ? "text-current" : "text-current opacity-50 group-hover:opacity-70"
                     )}>
-                      {formatTime(habit.remainingTime)} left
+                      {formatTime(habit.remainingTime)} restantes
                     </span>
+                  </div>
 
-                    {/* Action buttons mini */}
-                    <div className="flex gap-2 relative z-20">
-                      <button
-                        onClick={(e) => deleteHabit(e, habit.id)}
-                        className="p-1.5 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
-                        title="Delete Habit"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => resetHabit(e, habit.id, habit.target_minutes)}
-                        className="p-1.5 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-gray-500/10 transition-all"
-                        title="Reset Timer"
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    </div>
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 z-20 flex-shrink-0">
+                    <button
+                      onClick={(e) => resetHabit(e, habit.id, habit.target_minutes)}
+                      className="p-2 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-gray-500/10 transition-all"
+                      title="Reiniciar Temporizador"
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => deleteHabit(e, habit.id)}
+                      className="p-2 rounded-full text-current opacity-20 hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                      title="Eliminar Hábito"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Progress bar at bottom */}
-                <div className="absolute inset-x-0 bottom-0 h-1.5 bg-gray-500/10">
+                {/* Progress bar background fill */}
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-gray-500/10">
                   <div
                     className="h-full transition-all duration-1000 ease-linear"
                     style={{ width: `${habProgress}%`, backgroundColor: habit.color }}
