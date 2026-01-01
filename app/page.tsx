@@ -7,7 +7,24 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 // Fetcher for SWR
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const error = new Error('An error occurred while fetching the data.');
+    try {
+      const info = await res.json();
+      // @ts-ignore
+      error.info = info;
+    } catch (e) {
+      // @ts-ignore
+      error.info = { message: 'Failed to parse error response' };
+    }
+    // @ts-ignore
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+};
 
 interface Habit {
   id: number;
