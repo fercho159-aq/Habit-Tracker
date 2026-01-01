@@ -10,6 +10,16 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Habit Flow | Focus Timer",
   description: "Track your habits and stay focused.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Habit Flow",
+  },
 };
 
 export default function RootLayout({
